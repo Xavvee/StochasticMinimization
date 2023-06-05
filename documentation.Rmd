@@ -1,0 +1,408 @@
+---
+title: "Dokumenacja projektu - Hubert Kabziński"
+output: html_document
+date: "2023-01-27"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Projekt zaliczeniowy
+
+## Cel
+
+Celem projektu zaliczeniowego było porównanie dwóch z trzech podanych algorytmów minimalizacji stochastycznej, przy użyciu dwóch funkcji z pakietu `smoof`, które są skalarne, wielomodalne i mają wersje dla różnej liczby wymiarów.
+
+### Realizacja
+
+Projekt zdecydowałem się zrealizować przy użyciu **algorytmu poszukiwania przypadkowego _(Pure Random Search, PRS)_ ** oraz **algorytmu genetycznego _(Genetic Algorithm, GA)_ **. Natomiast z biblioteki `smoof` wybrałem funkcje **Ackley'a** oraz **Rastrigina**. Obie funkcje zostały uruchomione dla 2, 10 oraz 20 wymiarów. Dla każdego wymiaru, każda funkcja została wywołana po 50 razy, przy 1000 powtórzeniach, tzn. przy algorytmie genetycznym liczba iteracji miała taką wartość, analogicznie działało to przy algorytmie poszukiwania przypadkowego. Następnie dla uzyskanych w każdym przypadku wartości obliczana była średnia, przedziały ufności (95 - procentowe) oraz sprawdzane były testy hipotez zerowych.
+
+### Funkcja Ackleya
+Dostępna w pakiecie `smooth`, gdzie jest gotowa do użytku przez użytkownika. Zdecydowałem jednak, że dla zwiększenia transparentności stworzę funkcję, która robi właściwie to samo ( jest dosłownie kopią funkcji z dokumentacji), ale jej używanie jest bardziej intuicyjne. Prezentuje się ona następująco:  
+```{r fig.align='center'}
+  ackley<- function(ch){
+    d <- length(ch)
+    a=20
+    b=0.2
+    c=2*pi
+    sum1 <- sum(ch^2)
+    sum2 <- sum(cos(c*ch))
+    
+    term1 <- -a * exp(-b*sqrt(sum1/d))
+    term2 <- -exp(sum2/d)
+    
+    y <- term1 + term2 + a + exp(1)
+    return(y)
+}
+```
+Dziedziną funkcji **Ackley'a** są następujące przedziały:
+<center>
+> [-32.768, 32.768]  x  [-32.768, 32.768]  x   ... 
+
+W zależności od ilości wymiarów.
+</center>
+
+Funkcja ta posiada minimum o wartości 0 dla x należących do zbioru {0,0,0,...,0}. Wygląda w następujący sposób:
+<center>
+  ![Funkcja Ackley'a](ackley.png)
+</center>
+Jak widać, ma ona właściwie tylko jeden punkt, w którym jest widoczne minimum.
+
+### Funkcja Rastrigina
+Funkcja **Rastrigina**, podobnie jak **Ackley'a**, jest dostępna w pakiecie `smoof`. W jej przypadku postąpiłem analogicznie jak w przypadku poprzedniej funkcji. Stworzyłem nową funkcję, która idealnie obrazuje funkcję wbudowaną. Prezentuje się następująco:
+```{r}
+rastrigin <- function(ch)
+{
+  d <- length(ch)
+  
+  sum <- sum(ch^2 - 10*cos(2*pi*ch))
+  
+  y <- 10*d + sum
+  return(y)
+}
+```
+Dziedziną funkcji **Rastrigina** są następujące przedziały:
+<center>
+> [-5.12, 5.12]  x  [-5.12, 5.12]  x   ... 
+
+W zależności od ilości wymiarów.
+</center>
+Funkcja ta, znów podobnie jak **Ackley'a** wartość minimalną, równą 0, osiąga dla x należących do {0,0,0,...,0}. Jej wykres wygląda w następujący sposób:
+<center>
+  ![Funkcja Rastrigina](rastrigin.png)
+</center>
+Jak widać, funkcja **Rastrigina** ma znacznie bardziej wyraźne minima lokalne, które są dosyć zbliżone do wartości 0.
+
+
+
+ 
+ 
+
+## Implementacje algortymów
+
+### Algortym genetyczny
+Do zaimplementowania **algorytmu genetycznego** wykorzystałem dostępny w bibliotece `GA`. Funkcją `fitness`, która jest wymagana dla takiego algorytmu została wcześniej wspomniana funkcja, **Ackley'a** albo **Rastrigina**. Implementacja tych funkcji nie różniła się dla **GA** oraz **PRS** z wyjątkiem tego, że przy **GA** zwracała __-y__, a nie __y__ jak w przypadku **PRS**. Działo się tak, ponieważ **algorytm geonetyczny** zwraca maksimum dla danej funkcji. Zmieniając zatem liczby na przeciwne, najmniejsze liczby będą największe. Jeżeli odwrócimy znak, po wykonaniu algorytmu, otrzymamy wartość najmniejszą funkcji. Przykładowa implementacja **algorytmu genetycznego**, dla funkcji **Ackley'a** oraz dwóch wymiarów:
+
+``` 
+valuesAckley2dim<-rep(0,50)
+for(i in 1:50){
+  gaMinAckley2Dim<-ga(type="real-valued",
+                      fitness=ackley,
+                      lower=rep(-32.768,2),
+                      upper=rep(32.768,2),
+                      maxiter = 1000,
+                      maxFitness = 0)
+  bestch<-gaMinAckley2Dim@fitnessValue
+  valuesAckley2dim[i]<-bestch*(-1)
+}
+```
+
+Oczywiście w innych przypadkach kod różni się tylko wartościami `lower`, `upper` oraz `fitness`. Wartość `bestch` to ostatnia, najlepsza, wartość dla każdego wywołania algorytmu. Następnie do wcześniej stworzonego wektora najlepszych wartości dodajemy wartość `bestch`. Pozwala to, w prosty sposób obliczyć średnią dla każdego przypadku.
+
+
+
+
+
+### Poszukiwanie przypadkowe
+**Algorytm poszukiwania przypadkowego** podobnie jak **algorytm genetyczny** korzysta z wcześniej podanych funkcji. Implementacja dla funkcji **Ackley'a**. Analogicznie wygląda dla funkcji **Rastrigina**:
+```{r warning=FALSE}
+evalMinAckley<-function(dimensions){
+  minimal=1000
+  for(i in 1:1000){
+    randomized<-runif(dimensions,min=-32.768,max=32.768)
+    numb<-ackley(randomized)
+    if(numb<minimal){
+      minimal=numb
+    }
+  }
+  return(minimal)
+}
+
+outputAckley2dim<-replicate(50,evalMinAckley(2))
+```
+Funkcja jako argument przyjmuje wartość wymiarów dla jakiej chcemy sprawdzić wynik. Następnie tworzy wektor losowych punktów z wykorzystaniem funkcji `runif`. Potem odpowiednia funkcja otrzymuje ten wektor jako argument, a wartość tej funkcji przypisywana jest do wartości zmiennej `numb`, która porównywana jest z aktualną wartością minimalną. Ostatnia linijka kodu obrazuje w jaki sposób tworzony jest wektor minimalnych wartości dla 50 powtórzeń funkcji.
+
+
+## Przedstawienie wyników dla funkcji Ackley'a
+
+### Wyniki dla dwóch wymiarów
+**Algorytm genetyczny**   
+Po wywołaniu **algorytmu genetycznego** dla dwuwymiarowej funkcji **Ackley'a** otrzymany został wektor o następujących wartościach:    
+<center>
+[1] 4.951980e-05 7.877415e-06 1.661675e-05 2.696242e-05 7.260491e-05 1.184419e-04 6.754621e-05   
+[8] 9.536921e-05 3.880658e-05 9.119148e-05 1.050499e-04 6.886377e-05 2.608228e-05 1.493370e-04    
+[15] 9.630691e-05 7.033625e-05 1.697031e-04 1.011904e-04 1.224035e-04 1.877165e-05 2.306835e-05    
+[22] 5.946188e-05 5.205016e-05 2.101271e-05 8.836965e-05 1.517872e-06 3.739155e-05 1.752752e-05    
+[29] 5.790089e-05 8.300621e-06 7.830784e-05 9.231138e-05 3.636467e-05 1.044964e-04 5.589166e-05    
+[36] 9.745277e-05 4.975129e-05 7.343337e-05 2.458402e-05 9.198322e-06 1.241570e-05 4.646262e-05    
+[43] 6.084423e-05 4.561361e-06 1.515924e-04 8.123197e-05 8.492697e-05 3.670752e-05 8.045038e-05   
+[50] 7.166315e-05   
+Wykresy dla otrzymanego wektora:   
+![Histogram](histAck2D.png)   
+![Wykres pudełkowy](boxAck2D.png)   
+Wartość średnia dla danego wektora wynosi:     
+**meanAckley2Dim = $6.264461e^{-5}$**
+</center>
+**Algorytm poszukiwania losowego**   
+Po wywołaniu **algorytmu poszukiwania losowego** dla dwuwymiarowej funkcji **Ackley'a** otrzymany został wektor o następujących wartościach:   
+<center>
+[1] 2.0345571 2.2546851 3.7927090 3.2315605 3.4520045 4.1044735 3.8659231 6.3123913 4.0676490   
+[10] 4.1709849 3.4713470 3.3094655 6.9532420 5.1391238 5.5876619 5.4942184 0.2657223 4.5502299   
+[19] 4.2347462 4.2478573 3.0609210 2.7683361 4.2222291 4.1198011 3.4882149 3.6537215 4.4035632   
+[28] 5.0632163 5.4636807 3.0007660 4.8341066 4.1861904 3.4106597 2.7204353 3.1746903 5.9156327   
+[37] 3.2059941 3.6323364 5.3133843 4.3378340 4.5729606 2.6095668 4.5998642 6.3051483 5.5953685   
+[46] 5.3035867 3.8030885 5.7451998 5.6549228 4.2576654   
+Wykresy dla otrzymanego wektora:   
+![Histogram](prsHistAck2D.png)   
+![Wykres pudełkowy](prsBoxAck2D.png)  
+Wartość średnia dla danego wektora wynosi:   
+**meanAckley2Dim = $4.179273$**
+</center>   
+
+
+### Wyniki dla dziesięciu wymiarów
+**Algorytm genetyczny**   
+Po wywołaniu **algorytmu genetycznego** dla dziesięciowymiarowej funkcji **Ackley'a** otrzymany został wektor o następujących wartościach:    
+<center>
+[1] 0.015805100 0.066925708 0.020116433 0.019466381 0.011930915 0.026918453 0.019627661 0.026437959   
+ [9] 0.017343662 0.030507780 0.024098449 0.018781726 0.023772506 0.007436151 0.021363990 0.023407368   
+[17] 0.017324031 0.029215780 0.015829330 0.021240442 0.034040867 0.018356995 0.010949945 0.015770996   
+[25] 0.020435381 0.008648035 0.021049605 0.021974963 0.016136359 0.012480463 0.029487547 0.013546117   
+[33] 0.020418812 0.018732215 0.009258505 0.029208778 0.027831759 0.033725001 0.015798848 0.015667548   
+[41] 0.016301142 0.020534236 0.022945657 0.021104626 0.010198964 0.011461707 0.016434609 0.026649742   
+[49] 0.016997298 0.028334828     
+Wykresy dla otrzymanego wektora:   
+![Histogram](histAck10D.png)   
+![Wykres pudełkowy](boxAck10D.png)     
+Wartość średnia dla danego wektora wynosi:   
+**meanAckley10Dim = $0.02084063$**
+</center>
+**Algorytm poszukiwania losowego**   
+Po wywołaniu **algorytmu poszukiwania losowego** dla dziesięciowymiarowej funkcji **Ackley'a** otrzymany został wektor o następujących wartościach:  
+<center>
+[1] 18.57566 18.77449 17.52196 18.58514 16.61203 17.20687 17.52188 18.97169 18.19338 18.20257   
+[11] 18.93213 18.97723 18.35343 18.58645 18.35091 18.60202 17.62548 12.26757 18.57788 19.00236   
+[21] 18.30030 18.97837 16.96531 19.11435 18.52261 17.36076 17.71962 18.78243 18.63527 18.74644   
+[31] 18.95232 18.28972 18.40448 17.94764 18.24318 18.65913 18.08163 18.01923 19.02349 18.13659   
+[41] 19.01325 17.80248 18.09275 17.95261 18.51240 18.48248 18.48797 18.95332 18.66328 18.29055    
+Wykresy dla otrzymanego wektora:   
+![Histogram](prsHistAck10D.png)   
+![Wykres pudełkowy](prsBoxAck10D.png)    
+Wartość średnia dla danego wektora wynosi:   
+**meanAckley10Dim = $18.2115$**
+</center>
+
+### Wyniki dla dwudziestu wymiarów
+**Algorytm genetyczny**   
+Po wywołaniu **algorytmu genetycznego** dla dwudziestowymiarowej funkcji **Ackley'a** otrzymany został wektor o następujących wartościach:    
+<center>
+[1] 0.14426970 0.14236964 0.39086062 0.28584136 0.10883012 0.39447760 0.12008200 0.18542726   
+[9] 0.20448190 0.16529564 0.24008529 0.09658481 0.13096248 0.18383257 0.20724053 0.29105605   
+[17] 0.22525876 0.36271501 0.23640327 0.23962503 0.14290136 0.24717126 0.21788614 0.20118032   
+[25] 0.13812608 0.27177656 0.24924321 0.17190122 0.21144592 0.19052913 0.39712754 0.23346811   
+[33] 0.29006883 0.17023623 0.42530576 0.22873182 0.37050339 0.15217185 0.25058620 0.10025726   
+[41] 0.19667640 0.19602342 0.08792919 0.09747979 0.17491061 0.42961995 0.16049864 0.11222132   
+[49] 0.15103970 0.15545141    
+Wykresy dla otrzymanego wektora:   
+![Histogram](histAck20D.png)   
+![Wykres pudełkowy](boxAck20D.png)   
+Wartość średnia dla danego wektora wynosi:   
+**meanAckley20Dim = $0.2155634$**   
+</center>
+**Algorytm poszukiwania losowego**   
+Po wywołaniu **algorytmu poszukiwania losowego** dla dwudziestowymiarowej funkcji **Ackley'a** otrzymany został wektor o następujących wartościach:   
+<center>
+[1] 19.82982 19.21006 19.60302 19.73115 19.47480 20.09465 20.08165 20.21792 19.56164 19.99473   
+[11] 19.03105 20.07515 19.99011 20.16873 20.01878 20.12959 19.72619 20.01467 20.09761 20.03747   
+[21] 19.97256 19.80810 19.90497 20.20729 19.83115 19.73251 19.88913 19.94463 20.18153 20.00495   
+[31] 19.80332 19.83537 19.78664 19.75054 19.86826 19.99766 19.39986 19.82017 20.19082 20.02224   
+[41] 20.18587 19.49610 19.27695 19.43054 19.69077 19.35286 20.06622 19.93844 20.24213 19.86794   
+Wykresy dla otrzymanego wektora:   
+![Histogram](prsHistAck20D.png)   
+![Wykres pudełkowy](prsBoxAck20D.png)   
+Wartość średnia dla danego wektora wynosi:   
+**meanAckley20Dim = $19.85177$**  
+</center>
+
+## Przedstawienie wynikóW dla funkcji Rastrigina
+
+### Wyniki dla dwóch wymiarów
+**Algorytm genetyczny**   
+Po wywołaniu **algorytmu genetycznego** dla dwuwymiarowej funkcji **Rastrigina** otrzymany został wektor o następujących wartościach:    
+<center>
+[1] 1.893203e-08 2.857745e-08 4.709548e-09 2.632881e-08 1.969270e-07 5.651021e-09 1.381616e-07   
+[8] 4.420399e-08 2.745753e-07 2.330971e-09 1.281350e-08 1.541599e-07 9.046495e-09 1.043528e-07   
+[15] 1.466474e-08 5.560226e-08 2.004993e-07 2.495300e-07 3.359332e-07 9.008339e-09 2.295738e-08   
+[22] 3.252033e-07 4.952115e-07 3.962417e-08 9.451682e-09 1.772213e-07 2.107254e-08 2.139254e-07   
+[29] 6.366250e-09 4.505608e-09 2.510702e-08 3.768761e-09 1.540435e-08 5.786994e-09 5.972044e-09   
+[36] 2.750081e-09 3.662570e-08 1.066848e-09 8.710227e-09 4.868674e-09 1.168521e-08 2.286427e-07   
+[43] 2.084877e-07 6.782980e-09 9.907033e-08 1.383753e-07 5.495837e-08 8.330865e-10 1.843611e-07   
+[50] 4.669710e-08     
+Wykresy dla otrzymanego wektora:   
+![Histogram](histRast2D.png)   
+![Wykres pudełkowy](boxRast2D.png)   
+Wartość średnia dla danego wektora wynosi:   
+**meanRastrigin2Dim = $8.583004e^{-8}$**  
+</center>
+
+**Algorytm poszukiwania losowego**   
+Po wywołaniu **algorytmu poszukiwania losowego** dla dwuwymiarowej funkcji **Rastrigina** otrzymany został wektor o następujących wartościach:   
+<center>
+[1] 2.4988995 1.9693145 1.8977707 2.3398544 3.6358641 2.0433686 1.5820651 1.1792536 2.4970409   
+[10] 0.3658615 1.5016057 2.1206657 1.9084929 1.0501868 3.0522953 3.4223163 1.9343307 2.6237238   
+[19] 1.2972954 2.4714416 1.6796569 2.3595645 0.5337836 1.1890604 1.0367859 0.5726291 1.3544849   
+[28] 2.8966450 2.0864820 2.8939172 2.3886852 1.8413837 1.6045400 2.2667611 2.2936315 1.7500756   
+[37] 0.3862449 1.0277811 3.0261040 3.1237366 1.3820790 1.1035903 2.0290120 2.1441104 0.9404383   
+[46] 1.0777748 2.4414605 4.0253965 2.8489983 2.1801831   
+Wykresy dla otrzymanego wektora:    
+![Histogram](prsHistRast2D.png)   
+![Wykres pudełkowy](prsBoxRast2D.png)    
+Wartość średnia dla danego wektora wynosi:   
+**meanRastrigin2Dim = $1.957533$**  
+</center>
+
+
+### Wyniki dla dziesięciu wymiarów
+**Algorytm genetyczny**   
+Po wywołaniu **algorytmu genetycznego** dla dziesięciowymiarowej funkcji **Rastrigina** otrzymany został wektor o następujących wartościach:    
+<center>
+[1] 0.0006447576 0.0008545318 0.0069675267 0.0005958947 0.0031774067 0.0025023798 0.0033637564   
+[8] 0.0055438603 0.0007326056 0.0023843445 0.0018497514 0.0012580946 0.0004545303 0.0013113012   
+[15] 0.0005379332 0.0020581617 0.0045335056 0.0125644165 0.0017940763 0.0015939883 0.0049959423   
+[22] 0.0019370389 0.0033752777 0.0015283170 0.0034299158 0.0013428850 0.0031752977 0.0011266547   
+[29] 0.0009348661 0.0032122371 0.0007896781 0.0030619353 0.0006077491 0.0019253025 0.0031275266   
+[36] 0.0015307155 0.0012108011 0.0014411951 0.0028321779 0.0110168569 0.0015917697 0.0031421551   
+[43] 0.0028951690 0.0049577966 0.0022154369 0.0011295260 0.0023447056 0.0004263950 0.0004685794   
+[50] 0.0019736011      
+Wykresy dla otrzymanego wektora:   
+![Histogram](histRast10D.png)   
+![Wykres pudełkowy](boxRast10D.png)   
+Wartość średnia dla danego wektora wynosi:   
+**meanRastrigin10Dim = $0.002569407$**  
+</center>
+
+**Algorytm poszukiwania losowego**   
+Po wywołaniu **algorytmu poszukiwania losowego** dla dziesięciowymiarowej funkcji **Rastrigina** otrzymany został wektor o następujących wartościach:   
+<center>
+ [1]  80.83142  91.41048  88.57914  90.62843  91.93554  98.09969  91.86628  86.27778 100.48041   
+[10]  79.65400  76.65527  96.82632  67.39917 100.93297  79.10977  90.00225  75.15021  82.40119   
+[19]  83.48326  76.02539  94.26370  69.40241  98.95677  85.18699 102.37294  90.91071  87.49796   
+[28]  78.97265  80.31516  90.83815  84.62358  95.67221 100.29262  89.56424  89.42950  96.04027   
+[37]  94.46810  84.23342  94.93829  95.66076  94.26067  92.58575  94.56803  62.04383  72.06945   
+[46]  86.74047  91.16125  95.76636  86.92971  94.76534   
+Wykresy dla otrzymanego wektora:   
+![Histogram](prsHistRast10D.png)   
+![Wykres pudełkowy](prsBoxRast10D.png)    
+Wartość średnia dla danego wektora wynosi:   
+**meanRastrigin10Dim = $88.04561$**  
+</center>
+
+
+### Wyniki dla dwudziestu wymiarów
+**Algorytm genetyczny**   
+Po wywołaniu **algorytmu genetycznego** dla dwudziestowymiarowej funkcji **Rastrigina** otrzymany został wektor o następujących wartościach:    
+<center>
+[1] 1.28481789 0.09258182 0.10478420 0.94907651 0.08262602 0.24738756 0.19097088 0.49848461   
+[9] 0.40498930 2.34895837 0.10891612 1.29404502 0.06005313 0.10534236 1.65795899 0.20975805   
+[17] 0.06572491 1.10537803 0.04276140 0.14205703 0.15136817 0.13126987 0.15561296 0.74483103   
+[25] 0.55131165 0.30123894 1.08970880 0.19003150 0.17524006 0.17498151 0.27493476 0.05678717   
+[33] 0.13794808 0.13559526 0.14853578 0.14306855 0.17962044 0.11937533 0.07414299 0.13725721   
+[41] 0.10165373 1.09732820 2.81971565 0.21480708 0.15616623 0.34608791 0.27782418 0.54201195   
+[49] 0.17044863 1.43457824     
+Wykresy dla otrzymanego wektora:   
+![Histogram](histRast20D.png)   
+![Wykres pudełkowy](boxRast20D.png)   
+Wartość średnia dla danego wektora wynosi:   
+**meanRastrigin20Dim = $0.4646031$**  
+</center>
+**Algorytm poszukiwania losowego**   
+Po wywołaniu **algorytmu poszukiwania losowego** dla dwudziestowymiarowej funkcji **Rastrigina** otrzymany został wektor o następujących wartościach:   
+<center>
+[1] 216.0718 208.8241 231.2074 238.8830 248.7127 239.1835 198.1736 217.5743 236.6900 228.2375   
+[11] 234.7072 219.9426 229.0481 218.6189 234.3569 202.4861 238.9122 209.5881 238.9124 239.9134   
+[21] 241.8289 240.0042 224.3642 233.1589 245.7887 246.2870 232.5181 244.6017 233.6772 216.7438   
+[31] 211.6557 214.3011 236.0963 199.8960 237.5600 219.4672 220.4886 223.2728 209.1009 232.8655   
+[41] 224.7028 235.8623 237.4034 225.2046 213.9958 229.3775 235.6211 240.2014 229.7707 247.7356   
+Wykresy dla otrzymanego wektora:   
+![Histogram](prsHistRast20D.png)   
+![Wykres pudełkowy](prsBoxRast20D.png)    
+Wartość średnia dla danego wektora wynosi:   
+**meanRastring20Dim = $228.2719$**  
+</center>
+
+
+
+
+<center>
+**W obu przypadkach 95 - procentowe przedziały ufności zostały uzyskane dzięki wartościom zwracanym przez funkcję `t.test`.**   
+</center>
+
+
+
+
+## Porównanie wyników dla funkcji Ackley'a
+
+### Przedziały ufności
+**Algorytm genetyczny**   
+Dla dwóch wymiarów: $[5.105792e^{-5}, 7.423130e^{-5}]$,   
+Dla dziesięciu wymiarów: $[0.01820177, 0.02347949]$,   
+Dla dwudziestu wymiarów: $[ 0.1898697, 0.2412570]$.   
+**Algorytm poszukiwania przypadkowego**   
+Dla dwóch wymiarów: $[3.824039, 4.534507]$,     
+Dla dziesięciu wymiarów: $[17.91916, 18.50385]$,   
+Dla dwudziestu wymiarów: $[19.77073, 19.93280]$.  
+
+### Analiza wykresów   
+Porównujący histogramy otrzymane dla wyników **algorytmu genetycznego** oraz **algorytmu poszukiwania przypadkowego** można zauważyć, że wartości otrzymane pierwszym sposobem są dużo bardziej zbliżone do wartości oczekiwanej. Ponadto najczęściej więcej wartości znajduje się właśnie bliżej 0, niż dalej od niego. W przypadku drugiego algorytmu, niedość że wartości mocno różnią się od oczekiwanych to ich zagęszczenie występuje dalej od wartości 0. Co ciekawe, dla poszczególnych przypadkóW wykres pudełkowy ma podobny kształt, tj. zajmuje podobną ilość na wykresie ( w sensie wizualnym ). Nie oznacza to oczywiście jakiejś korelacji, której jednak nie można wykluczyć.   
+
+### Testy hipotez zerowych
+Przyjmijmy, że hipotezą zerową jest osiągnięcie wartości minimalnej - 0 podczas naszego eksperymentu. Miarę sukcesu zmierzymy wykorzystując parametr `p`, określający szansę zdarzenia przy użyciu funkcji `t.test()`, która służy do testowania hipotez zerowych. Hipotezą alternatywną zatem jest osiągnięcie wartości minimalnej różnej od 0.    
+**Algorytm genetyczny**   
+Dla dwóch wymiarów: p-value = $1.193e^{-14}$,   
+Dla dziesięciu wymiarów: p-value < $2.2e^{-16}$,    
+Dla dwudziestu wymiarów: p-value < $2.2e^{-16}$.  
+**Algorytm poszukiwania losowego**   
+Dla dwóch wymiarów: p-value < $2.2e^{-16}$,   
+Dla dziesięciu wymiarów: p-value < $2.2e^{-16}$,   
+Dla dwudziestu wymiarów: p-value < $2.2e^{-16}$.   
+
+Jak widać osiągnięte wartości są bardzo niewielkie, a szanse na uzyskanie 0 jako wartości minimalnej wręcz niemożliwe.
+
+## Porównanie wyników dla funkcji Rastrigina
+
+### Przedziały ufności
+**Algorytm genetyczny**   
+Dla dwóch wymiarów: $[5.386854e^{-8}, 1.177915e^{-7}]$,   
+Dla dziesięciu wymiarów: $[0.001890956, 0.003247857]$,   
+Dla dwudziestu wymiarów: $[0.2928476, 0.6363585]$.   
+**Algorytm poszukiwania przypadkowego**   
+Dla dwóch wymiarów: $[1.717953, 2.197113]$,   
+Dla dziesięciu wymiarów:  $[85.42935, 90.66186]$,    
+Dla dwudziestu wymiarów:  $[224.5834, 231.9604]$.   
+
+### Analiza wykresów   
+W przypadku funkcji **Rastrigina** sytuacja wygląda podobnie, jak przy funkcji **Ackley'a**. **Algorytm genetyczny** daje dużo lepsze wartości skumulowane bliżej właściwej wartości. **Algorytm poszukiwania losowego** zwraca wartości położone dalej od 0. Warto jednak zauważyć, że w tym przypadku wykresy pudełkowe różnią się kształtem dla tych samych przypadków. Być może więc, pokrywanie się tychże wykresów w poprzednim przypadku było losowe, ale możiwe jest też, że takie zdarzenie zachodzi dla funkcji **Ackley'a**, a dla funkcji **Rastrigina** nie.   
+
+### Testy hipotez zerowych
+Przyjmijmy, analogicznie jak w przypadku funkcji **Ackley'a**.   
+**Algorytm genetyczny**   
+Dla dwóch wymiarów: p-value = $1.96e^{-6}$,  
+Dla dziesięciu wymiarów: p-value = $7.56e^{-10}$,   
+Dla dwudziestu wymiarów: p-value = $1.708e^{-6}$.  
+**Algorytm poszukiwania losowego**   
+Dla dwóch wymiarów: p-value < $2.2e^{-16}$,
+Dla dziesięciu wymiarów: p-value < $2.2e^{-16}$,   
+Dla dwudziestu wymiarów: p-value < $2.2e^{-16}$.   
+Analogicznie jak dla funkcji **Ackley'a** szansa na uzyskanie wartości minimalnej równej 0, jest absurdalnie mała.   
+
+## Podsumowanie
+Po porównaniu funkcji **Rastrigina** i **Ackley'a** przy pomocy algorytmów **genetycznego** oraz **poszukiwania losowego** można wyciągnąć następujące wnioski:   
+1. W przypadku podanych funkcji dużo lepszą metodą poszukiwania minimum jest **algorytm genetyczny**. Wyniki osiągane przy jego pomocy, były dużo bardziej zbliżone do wartości minimalnej niż przy użyciu **algorytmu poszukiwania losowego**.    
+2. Oba algorytmy wraz z zwiększającą się ilością wymiarów otrzymywały coraz gorsze wyniki. Zapewne jest to spowodowane większą ilością punktów i mniejszą szansą na znalezienie punktu, który znajduje się blisko minimum. Szczególnie widoczne było to w przypadku **algorytmu poszukiwania losowego**, przy użyciu którego wyniki odbiegały znacząco od oczekiwań.   
+3. Wartości dla **algorytmu genetycznego** występują w największej ilości znacznie bliżej wartości minimalnej niż dla **algorytmu poszukiwania losowego**.   
+4. Testy hipotezy zerowych pokazują, że osiągnięcie faktycznej wartości minimalnej, czyli 0, jest wręcz niemożiwe przy wykorzystaniu podanych algorytmów i zadanej liczbie powtórzeń. Największa szansa na takie zdarzenie ma miejsce w przypadku **algorytmu genetycznego** oraz funkcji **Rastrigina** dla dwóch wymiarów, a mimo to jest równa niemal 0.   
+
+### Źródła:
+https://www.sfu.ca/~ssurjano/rastr.html   
+https://www.sfu.ca/~ssurjano/ackley.html
